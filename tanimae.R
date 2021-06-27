@@ -1,3 +1,8 @@
+# NMDS analysis of seaweed taxa in
+# Arikawa Bay, Nagasaki
+# Data: Shinichiro Tanimae
+# 2021 / 06 / 27
+
 library(vegan)
 library(tidyverse)
 library(lubridate)
@@ -8,34 +13,33 @@ library(magick)
 
 # REFERENCE
 # https://jkzorz.github.io/2020/04/04/NMDS-extras.html
-# 
+
 font_add_google("Noto Sans", "notosans")
 showtext_auto()
 
-
+# Load dataset
 fname = "~/Lab_Data/tanimaes/share_files/seaweed_sp_data_210421-210623.csv"
 tanimae = read_csv(fname) |>   mutate(station = factor(station))
+tanimae = tanimae |>   rename(g = class)
 
-t1 = tanimae |> 
-  mutate(name = str_glue("{genus} {species}")) |> 
-  group_by(date, station, class) |> 
-  summarise(n = length(class))
-
+# Some species have not been identified to the genus level
+t1 = tanimae |>
+  group_by(date, station, g) |> 
+  summarise(n = length(g))
 
 ggplot(t1) + 
-  geom_col(aes(y = class, x = n, fill = station),
+  geom_col(aes(y = g, x = n, fill = station),
            position = position_dodge2()) +
   facet_grid(rows = vars(date))
 
-
-
-# Shannon Diversity of Family
+# Shannon Diversity of the taxa
 t2 = tanimae |> 
-  group_by(date, station, family) |> 
-  summarise(n = length(family)) |> 
-  ungroup()|> pivot_wider(names_from = family,
+  group_by(date, station, g) |> 
+  summarise(n = length(g)) |> 
+  ungroup()|> pivot_wider(names_from = g,
                   values_from= n,
-                  values_fill = 0) 
+                  values_fill = 0) |> 
+  print()
 
 
 # NMDS 
@@ -56,16 +60,24 @@ t3 = t2 |> group_nest(date) |>
 M = t3 |> select(date, data) |> slice(1) |> unnest(data) |> select(-date)
 # First try, k = 2 but the stress was > 0.05.
 # Since stress was > 0.05, set k = 3
-nmdsout = M |> select(-station) |> as.matrix() |> metaMDS(k = 3)
+nmdsout = M |> select(-station) |> as.matrix() |> metaMDS(k = 2)
 
-scores(nmdsout) |> as_tibble() |> 
+nmds_scores = scores(nmdsout) |> as_tibble() |> 
   mutate(station = 1:7) |> 
-  mutate(location = ifelse(station %in% c(3,5,6, 7), "Outside", "Inside")) |> 
-  mutate(station = factor(station, levels = 1:7, labels = str_glue("St. {1:7}"))) |>
-  ggplot() + 
+  mutate(location = ifelse(station %in% c(3,5,6, 7), 
+                           "Outside", "Inside")) |> 
+  mutate(station = factor(station, 
+                          levels = 1:7, 
+                          labels = str_glue("St. {1:7}"))) 
+
+# Plot of NMDS1 and NMDS2 for all times.
+ggplot(nmds_scores) + 
   geom_point(aes(x = NMDS1, y = NMDS2, color = location)) +
-  geom_text_repel(aes(x = NMDS1, y = NMDS2, color = location, label = station)) +
+  geom_text_repel(aes(x = NMDS1, y = NMDS2, 
+                      color = location, label = station)) +
   scale_color_manual(values = viridis::viridis(3))  +
+  scale_x_continuous(parse(text = "NMDS[1]")) +
+  scale_y_continuous(parse(text = "NMDS[2]")) +
   guides(color = guide_legend(override.aes = list(label = ""))) +
   ggtitle("Family level NMDS plot") +
   theme_gray(base_family = "notosans") +
@@ -103,8 +115,15 @@ t5 |>
   mutate(location = ifelse(station %in% c(3,5,6, 7), "Outside", "Inside")) |> 
   ggplot() + 
   geom_point(aes(x = NMDS1, y = NMDS2, color = location),size = 2) +
-  geom_text(aes(x = NMDS1, y = NMDS2, label = station, color = location), size = 10) +
+  geom_text_repel(aes(x = NMDS1, y = NMDS2, label = station, color = location), size = 10) +
   scale_color_manual(values = viridis::viridis(3)) +
+  guides(color = guide_legend(override.aes = list(label = ""))) +
+  ggtitle("Family level NMDS plot") +
+  theme_gray(base_family = "notosans") +
+  theme(legend.position = c(0,0),
+        legend.justification = c(0,0),
+        legend.background = element_blank(),
+        legend.title = element_blank()) +
   facet_wrap("date")
 
 
