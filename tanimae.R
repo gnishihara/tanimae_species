@@ -13,6 +13,7 @@ library(magick)
 
 # REFERENCE
 # https://jkzorz.github.io/2020/04/04/NMDS-extras.html
+# https://www.davidzeleny.net/anadat-r/doku.php/en:ordination
 
 font_add_google("Noto Sans", "notosans")
 showtext_auto()
@@ -58,10 +59,24 @@ t3 = t2 |> group_nest(date) |>
   })) 
 
 M = t3 |> select(date, data) |> slice(1) |> unnest(data) |> select(-date)
-# First try, k = 2 but the stress was > 0.05.
-# Since stress was > 0.05, set k = 3
-nmdsout = M |> select(-station) |> as.matrix() |> metaMDS(k = 2)
 
+# First try, k = 2 
+# if stress  > 0.05, increase k
+nmdsout = M |> select(-station) |>  metaMDS(k = 2)
+
+# Note a Hellinger transforation should be used for the data
+# This version used the Hellinger transformation
+nmdsout = M |> select(-station) |> decostand("hellinger") |>
+  metaMDS(k = 2)
+
+# Hellinger transformation raw code.
+# M |> select(-station) |> {\(x) {sqrt(x  / apply(x, 1, sum))}}()
+
+# Shepard stress plot. If there data is not close to the line,
+# then the original dissimilarities are not preserved very well.
+stressplot(nmdsout) 
+
+# Recover the nmds scores to plot in ggplot
 nmds_scores = scores(nmdsout) |> as_tibble() |> 
   mutate(station = 1:7) |> 
   mutate(location = ifelse(station %in% c(3,5,6, 7), 
@@ -87,7 +102,7 @@ ggplot(nmds_scores) +
         legend.title = element_blank())
 
 ## Save figure as pdf and png.
-wh = aseries(7)
+wh = aseries(7) # This is from gnnlab package
 fname = "tanimae.pdf"
 ggsave(fname, width = wh[2], height = wh[1], units = "mm")
 
