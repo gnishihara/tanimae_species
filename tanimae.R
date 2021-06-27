@@ -6,6 +6,9 @@ library(ggrepel)
 library(showtext)
 library(magick)
 
+# REFERENCE
+# https://jkzorz.github.io/2020/04/04/NMDS-extras.html
+# 
 font_add_google("notosans", "Noto Sans")
 showtext_auto()
 
